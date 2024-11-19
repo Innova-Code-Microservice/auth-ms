@@ -4,10 +4,16 @@ import { LoginUserDto } from './dto/login-user.dto';
 import { PrismaService } from 'src/prisma/prisma.service';
 import { RpcException } from '@nestjs/microservices';
 import * as bcrypt from 'bcrypt'
+import { JwtService } from '@nestjs/jwt';
+import { JwtPayload } from './interface/jwt-payload';
+import { envs } from 'src/config';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) { }
+  constructor(
+    private prisma: PrismaService,
+    private readonly jwtService: JwtService
+  ) { }
 
   async register(registerUserDto: RegisterUserDto){
 
@@ -69,7 +75,7 @@ export class AuthService {
 
       return {
         user: restUser,
-        token: "token"
+        token: await this.signJWT({ email: restUser.email, id: restUser.id, name: restUser.name })
       }
 
     } catch (error) {
@@ -82,8 +88,30 @@ export class AuthService {
 
   }
 
+  async signJWT( payload: JwtPayload ){
+    return this.jwtService.sign(payload)
+  }
   
   async verify(token: string){
+
+    try {
+      const { sub, iat, exp, ...user } = this.jwtService.verify(token, {
+        secret: envs.jwtSecret
+      })
+
+      return {
+        user,
+        token
+      }
+
+
+    } catch (error) {
+      console.log(error)
+      throw new RpcException({
+        statusCode: HttpStatus.UNAUTHORIZED,
+        message: "Token invalido" 
+      })
+    }
 
   }
 
